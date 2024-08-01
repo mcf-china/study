@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -8,6 +9,13 @@ import (
 )
 
 func main() {
+	//printUserMeteData()
+	//printAllMeteData()
+	printJson()
+}
+
+//打印用户元数据信息
+func printUserMeteData() {
 	// 打开 MP4 文件
 	file, err := os.Open("/Users/a1234/Downloads/merged.mp4")
 	if err != nil {
@@ -26,7 +34,6 @@ func main() {
 	// 打印 MP4 文件的标签
 	printMP4Tags(parsedMp4)
 }
-
 func printMP4Tags(mp4file *mp4.File) {
 	for _, box := range mp4file.Moov.Children {
 		boxType := box.Type()
@@ -98,89 +105,142 @@ func parseDataBox(dataBox *mp4.DataBox) string {
 	return string(dataBox.Data)
 }
 
-//
-//package main
-//
-//import (
-//	"bytes"
-//	"encoding/binary"
-//	"fmt"
-//	"io"
-//	"os"
-//	"path/filepath"
-//)
-//
-//// BoxHeader 信息头
-//type BoxHeader struct {
-//	Size       uint32
-//	FourccType [4]byte
-//	Size64     uint64
-//}
-//
-//func main() {
-//	file, err := os.Open("/Users/a1234/Downloads/merged.mp4")
-//	if err != nil {
-//		panic(err)
-//	}
-//	duration, err := GetMP4Duration(file)
-//	if err != nil {
-//		panic(err)
-//	}
-//	fmt.Println(filepath.Base("/Users/a1234/Downloads/merged.mp4"), duration)
-//	var info = make([]byte, 0x100)
-//	file.ReadAt(info, 0)
-//	fmt.Println(info)
-//}
-//
-//// GetMP4Duration 获取视频时长，以秒计
-//func GetMP4Duration(reader io.ReaderAt) (lengthOfTime uint32, err error) {
-//	var info = make([]byte, 0x10)
-//	var boxHeader BoxHeader
-//	var offset int64 = 0
-//	// 获取moov结构偏移
-//	for {
-//		_, err = reader.ReadAt(info, offset)
-//		if err != nil {
-//			return
-//		}
-//		boxHeader = getHeaderBoxInfo(info)
-//		fourccType := getFourccType(boxHeader)
-//		if fourccType == "moov" {
-//			break
-//		}
-//		// 有一部分mp4 mdat尺寸过大需要特殊处理
-//		if fourccType == "mdat" {
-//			if boxHeader.Size == 1 {
-//				offset += int64(boxHeader.Size64)
-//				continue
-//			}
-//		}
-//		offset += int64(boxHeader.Size)
-//	}
-//	// 获取moov结构开头一部分
-//	moovStartBytes := make([]byte, 0x100)
-//	_, err = reader.ReadAt(moovStartBytes, offset)
-//	if err != nil {
-//		return
-//	}
-//	// 定义timeScale与Duration偏移
-//	timeScaleOffset := 0x1C
-//	durationOffest := 0x20
-//	timeScale := binary.BigEndian.Uint32(moovStartBytes[timeScaleOffset : timeScaleOffset+4])
-//	Duration := binary.BigEndian.Uint32(moovStartBytes[durationOffest : durationOffest+4])
-//	lengthOfTime = Duration / timeScale
-//	return
-//}
-//
-//// getHeaderBoxInfo 获取头信息
-//func getHeaderBoxInfo(data []byte) (boxHeader BoxHeader) {
-//	buf := bytes.NewBuffer(data)
-//	binary.Read(buf, binary.BigEndian, &boxHeader)
-//	return
-//}
-//
-//// getFourccType 获取信息头类型
-//func getFourccType(boxHeader BoxHeader) (fourccType string) {
-//	fourccType = string(boxHeader.FourccType[:])
-//	return
-//}
+// 打印所有元数据
+func printAllMeteData() {
+	// 打开 MP4 文件
+	file, err := os.Open("/Users/a1234/Downloads/merged.mp4")
+	if err != nil {
+		fmt.Printf("打开文件错误: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	// 解析 MP4 文件
+	parsedMp4, err := mp4.DecodeFile(file)
+	if err != nil {
+		fmt.Printf("解析 MP4 文件错误: %v\n", err)
+		return
+	}
+
+	// 打印 MP4 文件的所有元数据
+	printBox(parsedMp4.Moov, 0)
+}
+
+// 打印盒子及其子盒子的信息
+func printBox(box mp4.Box, level int) {
+	indent := getIndent(level)
+	boxType := box.Type()
+	fmt.Printf("%s盒子类型: %s\n", indent, boxType)
+
+	// 如果是 ContainerBox，递归打印子盒子
+	if container, ok := box.(mp4.ContainerBox); ok {
+		for _, child := range container.GetChildren() {
+			printBox(child, level+1)
+		}
+	} else {
+		printLeafBox(box, level)
+	}
+}
+
+// 打印叶子盒子的详细信息
+func printLeafBox(box mp4.Box, level int) {
+	indent := getIndent(level)
+	switch leafBox := box.(type) {
+	case *mp4.DataBox:
+		fmt.Printf("%s数据盒 (data): 数据长度 = %d, 数据内容 = %s\n", indent, len(leafBox.Data), string(leafBox.Data))
+	default:
+		fmt.Printf("%s未知类型盒子的详细信息无法解析\n", indent)
+	}
+}
+
+// 生成缩进字符串
+func getIndent(level int) string {
+	return fmt.Sprintf("%s", fmt.Sprintf("%*s", level*2, ""))
+}
+
+// BoxData 用于存储盒子的基本信息和子盒子
+type BoxData struct {
+	Type     string    `json:"type"`
+	Size     uint64    `json:"size"`
+	Data     string    `json:"data,omitempty"`
+	Children []BoxData `json:"children,omitempty"`
+}
+
+var boxDataMap = make(map[string]BoxData)
+
+func printJson() {
+	// 打开 MP4 文件
+	file, err := os.Open("/Users/a1234/Downloads/merged.mp4")
+	if err != nil {
+		fmt.Printf("打开文件错误: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	// 解析 MP4 文件
+	parsedMp4, err := mp4.DecodeFile(file)
+	if err != nil {
+		fmt.Printf("解析 MP4 文件错误: %v\n", err)
+		return
+	}
+
+	// 获取 MP4 文件的层次结构
+	rootBoxData := handleBox(parsedMp4)
+
+	// 将层次结构转换为 JSON
+	jsonData, err := json.MarshalIndent(rootBoxData, "", "  ")
+	if err != nil {
+		fmt.Printf("JSON 序列化错误: %v\n", err)
+		return
+	}
+
+	// 打印 JSON 数据
+	fmt.Println(string(jsonData))
+	descBox := boxDataMap["desc"]
+	bytes, _ := json.Marshal(descBox)
+	fmt.Printf(string(bytes))
+}
+
+func handleBox(mp4file *mp4.File) BoxData {
+	boxData := BoxData{}
+	for _, box := range mp4file.Moov.Children {
+		boxType := box.Type()
+		switch boxType {
+		case "udta":
+			boxData = getBoxData(box.(*mp4.UdtaBox))
+		default:
+			fmt.Printf("跳过类型为: %s 的盒子\n", boxType)
+		}
+	}
+	return boxData
+}
+
+// 获取盒子及其子盒子的详细信息
+func getBoxData(box mp4.Box) BoxData {
+	boxData := BoxData{
+		Type: box.Type(),
+		Size: box.Size(),
+	}
+
+	// 如果是 ContainerBox，递归获取子盒子的信息
+	if container, ok := box.(mp4.ContainerBox); ok {
+		for _, child := range container.GetChildren() {
+			childData := getBoxData(child)
+			boxData.Children = append(boxData.Children, childData)
+		}
+	} else {
+		boxData.Data = getBoxDataContent(box)
+	}
+	boxDataMap[boxData.Type] = boxData
+	return boxData
+}
+
+// 获取叶子盒子的内容
+func getBoxDataContent(box mp4.Box) string {
+	switch leafBox := box.(type) {
+	case *mp4.DataBox:
+		return fmt.Sprintf("%s", leafBox.Data)
+	default:
+		return ""
+	}
+}
