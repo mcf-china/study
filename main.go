@@ -3,9 +3,8 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-
 	"github.com/Eyevinn/mp4ff/mp4"
+	"os"
 )
 
 func main() {
@@ -160,10 +159,10 @@ func getIndent(level int) string {
 
 // BoxData 用于存储盒子的基本信息和子盒子
 type BoxData struct {
-	Type     string    `json:"type"`
-	Size     uint64    `json:"size"`
-	Data     string    `json:"data,omitempty"`
-	Children []BoxData `json:"children,omitempty"`
+	Type     string     `json:"type"`
+	Size     uint64     `json:"size"`
+	Data     string     `json:"data,omitempty"`
+	Children []*BoxData `json:"children,omitempty"`
 }
 
 var boxDataMap = make(map[string]BoxData)
@@ -196,13 +195,42 @@ func printJson() {
 
 	// 打印 JSON 数据
 	fmt.Println(string(jsonData))
-	descBox := boxDataMap["desc"]
-	bytes, _ := json.Marshal(descBox)
-	fmt.Printf(string(bytes))
+	//descBox := boxDataMap["desc"]
+	//bytes, _ := json.Marshal(descBox)
+	//fmt.Printf(string(bytes))
+	//for _, box := range descBox.Children {
+	//	if box.Type == "data" {
+	//		fmt.Printf(box.Data)
+	//	}
+	//}
+	//bytes2, _ := json.Marshal(boxDataMap)
+	//fmt.Printf(string(bytes2))
+	fmt.Printf(GetDataByType("desc", rootBoxData))
 }
 
-func handleBox(mp4file *mp4.File) BoxData {
-	boxData := BoxData{}
+func GetDataByType(boxType string, rootBox *BoxData) string {
+	result := make(map[string]string)
+
+	var findFun func(box *BoxData)
+	findFun = func(box *BoxData) {
+		if box.Type == boxType {
+			for _, child := range box.Children {
+				result[child.Type] = child.Data
+			}
+			return
+		}
+
+		for _, child := range box.Children {
+			findFun(child)
+		}
+	}
+
+	findFun(rootBox)
+	return result["data"]
+}
+
+func handleBox(mp4file *mp4.File) *BoxData {
+	boxData := &BoxData{}
 	for _, box := range mp4file.Moov.Children {
 		boxType := box.Type()
 		switch boxType {
@@ -216,8 +244,8 @@ func handleBox(mp4file *mp4.File) BoxData {
 }
 
 // 获取盒子及其子盒子的详细信息
-func getBoxData(box mp4.Box) BoxData {
-	boxData := BoxData{
+func getBoxData(box mp4.Box) *BoxData {
+	boxData := &BoxData{
 		Type: box.Type(),
 		Size: box.Size(),
 	}
@@ -231,7 +259,6 @@ func getBoxData(box mp4.Box) BoxData {
 	} else {
 		boxData.Data = getBoxDataContent(box)
 	}
-	boxDataMap[boxData.Type] = boxData
 	return boxData
 }
 
