@@ -10,7 +10,9 @@ import (
 func main() {
 	//printUserMeteData()
 	//printAllMeteData()
-	printJson()
+	//printJson()
+
+	HWOD3()
 }
 
 //打印用户元数据信息
