@@ -37,7 +37,7 @@ func user(R int, Ni []int, D int) int {
 	return maxUser
 }
 
-func main() {
+func HWOD3() {
 	var R int
 	fmt.Print("Enter R: ")
 	fmt.Scan(&R)

@@ -12,7 +12,8 @@ func main() {
 	//printAllMeteData()
 	//printJson()
 
-	HWOD3()
+	//HWOD3()
+	IO1()
 }
 
 //打印用户元数据信息
