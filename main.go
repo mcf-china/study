@@ -13,7 +13,8 @@ func main() {
 	//printJson()
 
 	//HWOD3()
-	IO1()
+	//IO1()
+	IdCard()
 }
 
 //打印用户元数据信息
